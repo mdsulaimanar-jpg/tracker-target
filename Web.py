@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+from urllib.parse import urlencode
 from datetime import datetime, timedelta
 from supabase import create_client, Client
 
@@ -123,56 +124,57 @@ else:
             if st.button("🚪 Logout", use_container_width=True):
                 logout_user()
 
-    # --- FORM TAMBAH DATA (FIX BUG KALENDER) ---
-    st.markdown("### ➕ Tambah Kegiatan Baru")
-    with st.container(border=True):
-        with st.form(key="form_tambah_baru"):
-            kategori_baru = st.selectbox("Pilih Kategori", ["Jurnal", "Kompetisi", "Funding", "Project", "Pengmas"])
-            nama_baru = st.text_input("Nama Kegiatan (Wajib diisi)")
-            
-            col_m1, col_m2 = st.columns(2)
-            deadline_baru = col_m1.date_input("Deadline Utama (Final)")
-            status_baru = col_m2.selectbox("Status Akhir", ["Persiapan", "In Review", "Revisi", "Selesai", "Ditolak"])
-            
-            st.markdown("##### 📄 Kelengkapan Proposal & Afiliasi *(Abaikan jika Jurnal)*")
-            col_p3, col_p4 = st.columns(2)
-            naungan_prop = col_p3.selectbox("Dinaungi Oleh", ["Individu", "Laboratorium Dasar Komputer", "Telkom University", "Lainnya"])
-            tujuan_prop = col_p4.text_input("Dikirim ke Instansi/Penyelenggara")
-            
-            col_p1, col_p2 = st.columns(2)
-            tgl_prop = col_p1.date_input("Deadline Pengiriman Proposal")
-            stat_prop = col_p2.selectbox("Status Proposal", ["Belum Kirim", "Terkirim", "Diterima", "Ditolak"])
+    # --- FORM TAMBAH DATA ---
+    with st.expander("➕ **Klik di sini untuk Tambah Kegiatan Baru**", expanded=False):
+        kategori_baru = st.selectbox("Pilih Kategori", ["Jurnal", "Kompetisi", "Funding", "Project", "Pengmas"])
+        nama_baru = st.text_input("Nama Kegiatan (Wajib diisi)")
+        
+        col_m1, col_m2 = st.columns(2)
+        deadline_baru = col_m1.date_input("Deadline Utama (Final)")
+        status_baru = col_m2.selectbox("Status Akhir", ["Persiapan", "In Review", "Revisi", "Selesai", "Ditolak"])
+        
+        if kategori_baru != "Jurnal":
+            with st.container(border=True):
+                st.markdown("##### 📄 Kelengkapan Proposal & Afiliasi")
+                col_p3, col_p4 = st.columns(2)
+                naungan_prop = col_p3.selectbox("Dinaungi Oleh", ["Individu", "Laboratorium Dasar Komputer", "Telkom University", "Lainnya"])
+                wajib_label = " *(Wajib)*" if naungan_prop != "Individu" else ""
+                tujuan_prop = col_p4.text_input(f"Dikirim ke Instansi/Penyelenggara{wajib_label}")
                 
+                col_p1, col_p2 = st.columns(2)
+                tgl_prop = col_p1.date_input("Deadline Pengiriman Proposal")
+                stat_prop = col_p2.selectbox("Status Proposal", ["Belum Kirim", "Terkirim", "Diterima", "Ditolak"])
+        else:
+            tgl_prop = None
+            stat_prop = "-"
+            naungan_prop = "Individu"
+            tujuan_prop = "-"
+            
+        with st.container(border=True):
             st.markdown("##### 📝 Informasi Tambahan")
             col_i1, col_i2 = st.columns(2)
             deskripsi_baru = col_i1.text_area("Deskripsi Singkat / Catatan")
             link_baru = col_i2.text_input("Link Berkas (Drive / Web)")
 
-            if st.form_submit_button("Simpan Kegiatan", type="primary", use_container_width=True):
-                if not nama_baru:
-                    st.error("❌ Nama kegiatan tidak boleh kosong!")
-                elif kategori_baru != "Jurnal" and naungan_prop != "Individu" and not tujuan_prop:
-                    st.error("🚨 Gagal Menyimpan! Karena berafiliasi, kolom 'Dikirim ke' WAJIB diisi.")
-                else:
-                    if kategori_baru == "Jurnal":
-                        tgl_prop = None
-                        stat_prop = "-"
-                        naungan_prop = "Individu"
-                        tujuan_prop = "-"
-
-                    data_insert = {
-                        "owner_email": st.session_state.user_email,
-                        "kategori": kategori_baru, "nama": nama_baru,
-                        "deadline": str(deadline_baru), "status": status_baru,
-                        "deskripsi": deskripsi_baru, "link": link_baru,
-                        "tgl_proposal": str(tgl_prop) if tgl_prop else None,
-                        "status_proposal": stat_prop, "naungan": naungan_prop,
-                        "tujuan_proposal": tujuan_prop
-                    }
-                    supabase.table("kegiatan").insert(data_insert).execute()
-                    st.toast('🚀 Data berhasil ditambahkan!', icon='✅')
-                    time.sleep(1)
-                    st.rerun()
+        if st.button("Simpan Kegiatan", type="primary", use_container_width=True):
+            if not nama_baru:
+                st.error("❌ Nama kegiatan tidak boleh kosong!")
+            elif kategori_baru != "Jurnal" and naungan_prop != "Individu" and not tujuan_prop:
+                st.error("🚨 Gagal Menyimpan! Karena berafiliasi, kolom 'Dikirim ke' WAJIB diisi.")
+            else:
+                data_insert = {
+                    "owner_email": st.session_state.user_email,
+                    "kategori": kategori_baru, "nama": nama_baru,
+                    "deadline": str(deadline_baru), "status": status_baru,
+                    "deskripsi": deskripsi_baru, "link": link_baru,
+                    "tgl_proposal": str(tgl_prop) if tgl_prop else None,
+                    "status_proposal": stat_prop, "naungan": naungan_prop,
+                    "tujuan_proposal": tujuan_prop
+                }
+                supabase.table("kegiatan").insert(data_insert).execute()
+                st.toast('🚀 Data berhasil ditambahkan!', icon='✅')
+                time.sleep(1)
+                st.rerun()
 
     st.divider()
 
@@ -180,9 +182,7 @@ else:
     response = supabase.table("kegiatan").select("*").eq("owner_email", st.session_state.user_email).execute()
     data_semua = response.data
 
-    # FIX ZONA WAKTU (WIB/Jakarta)
-    today = (datetime.utcnow() + timedelta(hours=7)).date()
-    
+    today = datetime.now().date()
     data_aktif = []
     data_history = []
 
