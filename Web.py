@@ -6,14 +6,13 @@ from supabase import create_client, Client
 
 st.set_page_config(page_title="Tracker Akademik", layout="wide", page_icon="🎯")
 
-# --- CSS INJECTION: BIKIN UI MAKIN SMOOTH & MODERN ---
+# --- CSS INJECTION: BIKIN UI MAKIN SMOOTH & MODERN (SAFE MODE) ---
 smooth_ui_style = """
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
     
-    /* Efek hover smooth untuk kotak metrik */
+    /* Efek hover smooth untuk kotak metrik aja, aman dari bug kalender */
     div[data-testid="metric-container"] {
         background-color: #ffffff;
         border: 1px solid #e6e6ea;
@@ -26,13 +25,9 @@ smooth_ui_style = """
         transform: translateY(-5px);
         box-shadow: 4px 4px 15px rgba(0,0,0,0.1);
     }
-    
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 20px;
-    }
     </style>
 """
- # st.markdown(smooth_ui_style, unsafe_allow_html=True)
+st.markdown(smooth_ui_style, unsafe_allow_html=True)
 
 # --- KONEKSI SUPABASE ---
 @st.cache_resource
