@@ -32,7 +32,7 @@ smooth_ui_style = """
     }
     </style>
 """
-st.markdown(smooth_ui_style, unsafe_allow_html=True)
+ # st.markdown(smooth_ui_style, unsafe_allow_html=True)
 
 # --- KONEKSI SUPABASE ---
 @st.cache_resource
