@@ -130,7 +130,7 @@ else:
         nama_baru = st.text_input("Nama Kegiatan (Wajib diisi)")
         
         col_m1, col_m2 = st.columns(2)
-        deadline_baru = col_m1.date_input("Deadline Utama (Final)")
+        deadline_baru = col_m1.date_input("Deadline Utama (Final)", format="DD/MM/YYYY")
         status_baru = col_m2.selectbox("Status Akhir", ["Persiapan", "In Review", "Revisi", "Selesai", "Ditolak"])
         
         if kategori_baru != "Jurnal":
