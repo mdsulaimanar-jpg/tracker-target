@@ -1,18 +1,16 @@
 import streamlit as st
 import time
-from urllib.parse import urlencode
 from datetime import datetime, timedelta
 from supabase import create_client, Client
 
 st.set_page_config(page_title="Tracker Akademik", layout="wide", page_icon="🎯")
 
-# --- CSS INJECTION: BIKIN UI MAKIN SMOOTH & MODERN (SAFE MODE) ---
+# --- CSS INJECTION (SAFE MODE) ---
 smooth_ui_style = """
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Efek hover smooth untuk kotak metrik aja, aman dari bug kalender */
     div[data-testid="metric-container"] {
         background-color: #ffffff;
         border: 1px solid #e6e6ea;
@@ -24,6 +22,9 @@ smooth_ui_style = """
     div[data-testid="metric-container"]:hover {
         transform: translateY(-5px);
         box-shadow: 4px 4px 15px rgba(0,0,0,0.1);
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 20px;
     }
     </style>
 """
@@ -107,7 +108,6 @@ else:
         }
         supabase.table("kegiatan").update(data).eq("id", id_kegiatan).execute()
 
-    # Header Atas
     col_head1, col_head2 = st.columns([4, 1])
     col_head1.header("🎯 Dashboard Akademik")
     
@@ -119,17 +119,21 @@ else:
             if st.button("🚪 Logout", use_container_width=True):
                 logout_user()
 
-    # --- FORM TAMBAH DATA ---
-    with st.expander("➕ **Klik di sini untuk Tambah Kegiatan Baru**", expanded=False):
-        kategori_baru = st.selectbox("Pilih Kategori", ["Jurnal", "Kompetisi", "Funding", "Project", "Pengmas"])
-        nama_baru = st.text_input("Nama Kegiatan (Wajib diisi)")
+    # --- FORM TAMBAH DATA (DINAMIS & ANTI-BUG KALENDER) ---
+    st.markdown("### ➕ Tambah Kegiatan Baru")
+    with st.container(border=True):
+        # Triknya di sini: Kategori ditaruh di luar form biar efek dinamisnya jalan
+        kategori_baru = st.selectbox("Pilih Kategori Target", ["Jurnal", "Kompetisi", "Funding", "Project", "Pengmas"], key="kat_tambah_luar")
         
-        col_m1, col_m2 = st.columns(2)
-        deadline_baru = col_m1.date_input("Deadline Utama (Final)", format="DD/MM/YYYY")
-        status_baru = col_m2.selectbox("Status Akhir", ["Persiapan", "In Review", "Revisi", "Selesai", "Ditolak"])
-        
-        if kategori_baru != "Jurnal":
-            with st.container(border=True):
+        with st.form(key="form_tambah_baru"):
+            nama_baru = st.text_input("Nama Kegiatan (Wajib diisi)")
+            
+            col_m1, col_m2 = st.columns(2)
+            deadline_baru = col_m1.date_input("Deadline Utama (Final)", format="DD/MM/YYYY")
+            status_baru = col_m2.selectbox("Status Akhir", ["Persiapan", "In Review", "Revisi", "Selesai", "Ditolak"])
+            
+            # Form afiliasi cuma bakal ke-render kalau yang dipilih bukan Jurnal
+            if kategori_baru != "Jurnal":
                 st.markdown("##### 📄 Kelengkapan Proposal & Afiliasi")
                 col_p3, col_p4 = st.columns(2)
                 naungan_prop = col_p3.selectbox("Dinaungi Oleh", ["Individu", "Laboratorium Dasar Komputer", "Telkom University", "Lainnya"])
@@ -137,39 +141,38 @@ else:
                 tujuan_prop = col_p4.text_input(f"Dikirim ke Instansi/Penyelenggara{wajib_label}")
                 
                 col_p1, col_p2 = st.columns(2)
-                tgl_prop = col_p1.date_input("Deadline Pengiriman Proposal")
+                tgl_prop = col_p1.date_input("Deadline Pengiriman Proposal", format="DD/MM/YYYY")
                 stat_prop = col_p2.selectbox("Status Proposal", ["Belum Kirim", "Terkirim", "Diterima", "Ditolak"])
-        else:
-            tgl_prop = None
-            stat_prop = "-"
-            naungan_prop = "Individu"
-            tujuan_prop = "-"
-            
-        with st.container(border=True):
+            else:
+                tgl_prop = None
+                stat_prop = "-"
+                naungan_prop = "Individu"
+                tujuan_prop = "-"
+                
             st.markdown("##### 📝 Informasi Tambahan")
             col_i1, col_i2 = st.columns(2)
             deskripsi_baru = col_i1.text_area("Deskripsi Singkat / Catatan")
             link_baru = col_i2.text_input("Link Berkas (Drive / Web)")
 
-        if st.button("Simpan Kegiatan", type="primary", use_container_width=True):
-            if not nama_baru:
-                st.error("❌ Nama kegiatan tidak boleh kosong!")
-            elif kategori_baru != "Jurnal" and naungan_prop != "Individu" and not tujuan_prop:
-                st.error("🚨 Gagal Menyimpan! Karena berafiliasi, kolom 'Dikirim ke' WAJIB diisi.")
-            else:
-                data_insert = {
-                    "owner_email": st.session_state.user_email,
-                    "kategori": kategori_baru, "nama": nama_baru,
-                    "deadline": str(deadline_baru), "status": status_baru,
-                    "deskripsi": deskripsi_baru, "link": link_baru,
-                    "tgl_proposal": str(tgl_prop) if tgl_prop else None,
-                    "status_proposal": stat_prop, "naungan": naungan_prop,
-                    "tujuan_proposal": tujuan_prop
-                }
-                supabase.table("kegiatan").insert(data_insert).execute()
-                st.toast('🚀 Data berhasil ditambahkan!', icon='✅')
-                time.sleep(1)
-                st.rerun()
+            if st.form_submit_button("💾 Simpan Kegiatan", type="primary", use_container_width=True):
+                if not nama_baru:
+                    st.error("❌ Nama kegiatan tidak boleh kosong!")
+                elif kategori_baru != "Jurnal" and naungan_prop != "Individu" and not tujuan_prop:
+                    st.error("🚨 Gagal Menyimpan! Karena berafiliasi, kolom 'Dikirim ke' WAJIB diisi.")
+                else:
+                    data_insert = {
+                        "owner_email": st.session_state.user_email,
+                        "kategori": kategori_baru, "nama": nama_baru,
+                        "deadline": str(deadline_baru), "status": status_baru,
+                        "deskripsi": deskripsi_baru, "link": link_baru,
+                        "tgl_proposal": str(tgl_prop) if tgl_prop else None,
+                        "status_proposal": stat_prop, "naungan": naungan_prop,
+                        "tujuan_proposal": tujuan_prop
+                    }
+                    supabase.table("kegiatan").insert(data_insert).execute()
+                    st.toast('🚀 Data berhasil ditambahkan!', icon='✅')
+                    time.sleep(1)
+                    st.rerun()
 
     st.divider()
 
@@ -177,7 +180,8 @@ else:
     response = supabase.table("kegiatan").select("*").eq("owner_email", st.session_state.user_email).execute()
     data_semua = response.data
 
-    today = datetime.now().date()
+    today = (datetime.utcnow() + timedelta(hours=7)).date()
+    
     data_aktif = []
     data_history = []
 
@@ -201,7 +205,6 @@ else:
     selesai_count = sum(1 for row in data_history if row['status'] == 'Selesai')
     terlewat_count = total_history - selesai_count
 
-    # --- TAMPILAN TAB BAWAH ---
     tab_aktif, tab_history = st.tabs(["📌 On-Going Target", "🗄️ History & Arsip"])
     
     kategori_list = ["Jurnal", "Kompetisi", "Funding", "Project", "Pengmas"]
@@ -215,10 +218,8 @@ else:
     with tab_aktif:
         col_met1, col_met2, col_met3 = st.columns(3)
         col_met1.metric(label="📌 Total On-Going", value=total_ongoing)
-        
         delta_stat = f"-{mendekati_dl} Butuh Perhatian!" if mendekati_dl > 0 else "Aman"
         col_met2.metric(label="🚨 Mendekati Deadline (<7 Hari)", value=mendekati_dl, delta=delta_stat, delta_color="inverse")
-        
         revisi_count = sum(1 for row in data_aktif if row['status'] == 'Revisi')
         delta_rev = f"-{revisi_count} Perlu Diperbaiki" if revisi_count > 0 else "Bersih"
         col_met3.metric(label="🔴 Butuh Revisi", value=revisi_count, delta=delta_rev, delta_color="inverse")
@@ -234,11 +235,11 @@ else:
         st.divider()
 
         filter_aktif = st.radio("🔍 Tampilkan Data:", ["Semua", "Jurnal", "Kompetisi", "Funding", "Project", "Pengmas"], horizontal=True, key="filter_aktif")
-
         data_aktif_filtered = [r for r in data_aktif if filter_aktif == "Semua" or r['kategori'] == filter_aktif]
 
         if not data_aktif_filtered:
             st.info(f"Belum ada target aktif untuk kategori {filter_aktif}.")
+        
         for row in data_aktif_filtered:
             dl_date = datetime.strptime(row['deadline'], "%Y-%m-%d").date()
             days_left = (dl_date - today).days
@@ -272,53 +273,57 @@ else:
                 
                 st.divider()
                 
-                with st.form(key=f"edit_{row['id']}"):
-                    st.markdown("##### ✏️ Edit Data")
-                    e_kat = st.selectbox("Kategori", kategori_list, index=kategori_list.index(row['kategori']) if row['kategori'] in kategori_list else 0, key=f"kat_{row['id']}")
-                    e_nama = st.text_input("Nama Kegiatan", value=row['nama'], key=f"nama_{row['id']}")
-                    
-                    col_e1, col_e2 = st.columns(2)
-                    e_dl = col_e1.date_input("Deadline Utama", value=dl_date, key=f"dl_{row['id']}")
-                    e_stat = col_e2.selectbox("Status Akhir", status_list, index=status_list.index(row['status']) if row['status'] in status_list else 0, key=f"stat_{row['id']}")
-                    
-                    if e_kat != "Jurnal":
-                        col_ep1, col_ep2 = st.columns(2)
-                        idx_naungan = naungan_list.index(row.get('naungan')) if row.get('naungan') in naungan_list else 0
-                        e_naungan = col_ep1.selectbox("Dinaungi Oleh", naungan_list, index=idx_naungan, key=f"naungan_{row['id']}")
-                        
-                        wajib_label_e = " (Wajib Diisi)" if e_naungan != "Individu" else ""
-                        e_tujuan = col_ep2.text_input(f"Dikirim ke Instansi/Penyelenggara{wajib_label_e}", value=row.get('tujuan_proposal') or "", key=f"tujuan_{row['id']}")
-                        
-                        col_ep3, col_ep4 = st.columns(2)
-                        prop_date_val = datetime.strptime(row['tgl_proposal'], "%Y-%m-%d").date() if row.get('tgl_proposal') else today
-                        e_tgl_prop = col_ep3.date_input("Deadline Proposal", value=prop_date_val, key=f"tglp_{row['id']}")
-                        
-                        idx_stat_prop = stat_prop_list.index(row.get('status_proposal')) if row.get('status_proposal') in stat_prop_list else 0
-                        e_stat_prop = col_ep4.selectbox("Status Proposal", stat_prop_list, index=idx_stat_prop, key=f"statp_{row['id']}")
-                    else:
-                        e_tgl_prop = None
-                        e_stat_prop = "-"
-                        e_naungan = "Individu"
-                        e_tujuan = "-"
-                        
-                    col_ei1, col_ei2 = st.columns(2)
-                    e_desk = col_ei1.text_area("Deskripsi", value=row.get('deskripsi') or "", key=f"desk_{row['id']}")
-                    e_link = col_ei2.text_input("Link Berkas", value=row.get('link') or "", key=f"link_{row['id']}")
-                    
-                    if st.form_submit_button("💾 Update Data"):
-                        if not e_nama:
-                            st.error("❌ Nama kegiatan tidak boleh kosong!")
-                        elif e_kat != "Jurnal" and e_naungan != "Individu" and not e_tujuan:
-                            st.error("🚨 Gagal Update! Karena berafiliasi, kolom 'Dikirim ke' WAJIB diisi.")
-                        else:
-                            update_data(row['id'], e_kat, e_nama, e_dl, e_stat, e_desk, e_link, e_tgl_prop, e_stat_prop, e_naungan, e_tujuan)
-                            st.toast('✨ Data berhasil di-update!', icon='✅')
-                            time.sleep(1)
-                            st.rerun()
-                
-                if st.button("🗑️ Hapus Data", key=f"del_{row['id']}"):
-                    hapus_data(row['id'])
-                    st.rerun()
+                # BUTTON AKSI (POP-UP EDIT & HAPUS)
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    with st.popover("✏️ Edit Data", use_container_width=True):
+                        with st.form(key=f"edit_{row['id']}"):
+                            st.markdown("##### ✏️ Update Kegiatan")
+                            # Kategori di dalam edit tetap ada, tapi tampilan field proposal fix berdasarkan tipe data aslinya
+                            e_kat = st.selectbox("Kategori", kategori_list, index=kategori_list.index(row['kategori']) if row['kategori'] in kategori_list else 0, key=f"kat_{row['id']}")
+                            e_nama = st.text_input("Nama Kegiatan", value=row['nama'], key=f"nama_{row['id']}")
+                            
+                            col_e1, col_e2 = st.columns(2)
+                            e_dl = col_e1.date_input("Deadline Utama", value=dl_date, format="DD/MM/YYYY", key=f"dl_{row['id']}")
+                            e_stat = col_e2.selectbox("Status Akhir", status_list, index=status_list.index(row['status']) if row['status'] in status_list else 0, key=f"stat_{row['id']}")
+                            
+                            # Cuma nampilin proposal kalau data aslinya emang bukan Jurnal
+                            if row['kategori'] != "Jurnal":
+                                col_ep1, col_ep2 = st.columns(2)
+                                idx_naungan = naungan_list.index(row.get('naungan')) if row.get('naungan') in naungan_list else 0
+                                e_naungan = col_ep1.selectbox("Dinaungi Oleh", naungan_list, index=idx_naungan, key=f"naungan_{row['id']}")
+                                wajib_label_e = " (Wajib)" if e_naungan != "Individu" else ""
+                                e_tujuan = col_ep2.text_input(f"Dikirim ke {wajib_label_e}", value=row.get('tujuan_proposal') or "", key=f"tujuan_{row['id']}")
+                                
+                                col_ep3, col_ep4 = st.columns(2)
+                                prop_date_val = datetime.strptime(row['tgl_proposal'], "%Y-%m-%d").date() if row.get('tgl_proposal') else today
+                                e_tgl_prop = col_ep3.date_input("Deadline Proposal", value=prop_date_val, format="DD/MM/YYYY", key=f"tglp_{row['id']}")
+                                idx_stat_prop = stat_prop_list.index(row.get('status_proposal')) if row.get('status_proposal') in stat_prop_list else 0
+                                e_stat_prop = col_ep4.selectbox("Status Proposal", stat_prop_list, index=idx_stat_prop, key=f"statp_{row['id']}")
+                            else:
+                                e_tgl_prop = None
+                                e_stat_prop = "-"
+                                e_naungan = "Individu"
+                                e_tujuan = "-"
+                                
+                            e_desk = st.text_area("Deskripsi", value=row.get('deskripsi') or "", key=f"desk_{row['id']}")
+                            e_link = st.text_input("Link Berkas", value=row.get('link') or "", key=f"link_{row['id']}")
+                            
+                            if st.form_submit_button("💾 Simpan Perubahan", type="primary", use_container_width=True):
+                                if not e_nama:
+                                    st.error("❌ Nama kegiatan tidak boleh kosong!")
+                                elif e_kat != "Jurnal" and e_naungan != "Individu" and not e_tujuan:
+                                    st.error("🚨 Gagal Update! Kolom 'Dikirim ke' WAJIB diisi.")
+                                else:
+                                    update_data(row['id'], e_kat, e_nama, e_dl, e_stat, e_desk, e_link, e_tgl_prop, e_stat_prop, e_naungan, e_tujuan)
+                                    st.toast('✨ Data berhasil di-update!', icon='✅')
+                                    time.sleep(1)
+                                    st.rerun()
+
+                with col_btn2:
+                    if st.button("🗑️ Hapus Data", key=f"del_{row['id']}", use_container_width=True):
+                        hapus_data(row['id'])
+                        st.rerun()
 
     # ==========================
     # TAB 2: HISTORY
@@ -339,11 +344,11 @@ else:
         st.divider()
         
         filter_hist = st.radio("🔍 Tampilkan History:", ["Semua", "Jurnal", "Kompetisi", "Funding", "Project", "Pengmas"], horizontal=True, key="filter_hist")
-        
         data_hist_filtered = [r for r in data_history if filter_hist == "Semua" or r['kategori'] == filter_hist]
         
         if not data_hist_filtered:
             st.info(f"Belum ada history untuk kategori {filter_hist}.")
+            
         for row in data_hist_filtered:
             dl_date = datetime.strptime(row['deadline'], "%Y-%m-%d").date()
             ikon_hist = "✅ " if row['status'] == 'Selesai' else "⚠️ "
@@ -355,50 +360,52 @@ else:
                 
                 st.divider()
                 
-                with st.form(key=f"edit_hist_{row['id']}"):
-                    st.markdown("##### ✏️ Edit Data (Bangkitkan dari History)")
-                    e_kat = st.selectbox("Kategori", kategori_list, index=kategori_list.index(row['kategori']) if row['kategori'] in kategori_list else 0, key=f"kat_h_{row['id']}")
-                    e_nama = st.text_input("Nama Kegiatan", value=row['nama'], key=f"nama_h_{row['id']}")
-                    
-                    col_e1, col_e2 = st.columns(2)
-                    e_dl = col_e1.date_input("Deadline Utama", value=dl_date, key=f"dl_h_{row['id']}")
-                    e_stat = col_e2.selectbox("Status Akhir", status_list, index=status_list.index(row['status']) if row['status'] in status_list else 0, key=f"stat_h_{row['id']}")
-                    
-                    if e_kat != "Jurnal":
-                        col_ep1, col_ep2 = st.columns(2)
-                        idx_naungan = naungan_list.index(row.get('naungan')) if row.get('naungan') in naungan_list else 0
-                        e_naungan = col_ep1.selectbox("Dinaungi Oleh", naungan_list, index=idx_naungan, key=f"naungan_h_{row['id']}")
-                        
-                        wajib_label_e = " (Wajib Diisi)" if e_naungan != "Individu" else ""
-                        e_tujuan = col_ep2.text_input(f"Dikirim ke Instansi/Penyelenggara{wajib_label_e}", value=row.get('tujuan_proposal') or "", key=f"tujuan_h_{row['id']}")
-                        
-                        col_ep3, col_ep4 = st.columns(2)
-                        prop_date_val = datetime.strptime(row['tgl_proposal'], "%Y-%m-%d").date() if row.get('tgl_proposal') else today
-                        e_tgl_prop = col_ep3.date_input("Deadline Proposal", value=prop_date_val, key=f"tglp_h_{row['id']}")
-                        
-                        idx_stat_prop = stat_prop_list.index(row.get('status_proposal')) if row.get('status_proposal') in stat_prop_list else 0
-                        e_stat_prop = col_ep4.selectbox("Status Proposal", stat_prop_list, index=idx_stat_prop, key=f"statp_h_{row['id']}")
-                    else:
-                        e_tgl_prop = None
-                        e_stat_prop = "-"
-                        e_naungan = "Individu"
-                        e_tujuan = "-"
-                        
-                    col_ei1, col_ei2 = st.columns(2)
-                    e_desk = col_ei1.text_area("Deskripsi", value=row.get('deskripsi') or "", key=f"desk_h_{row['id']}")
-                    e_link = col_ei2.text_input("Link Berkas", value=row.get('link') or "", key=f"link_h_{row['id']}")
-                    
-                    if st.form_submit_button("💾 Update Data"):
-                        if not e_nama:
-                            st.error("❌ Nama kegiatan tidak boleh kosong!")
-                        elif e_kat != "Jurnal" and e_naungan != "Individu" and not e_tujuan:
-                            st.error("🚨 Gagal Update! Karena berafiliasi, kolom 'Dikirim ke' WAJIB diisi.")
-                        else:
-                            update_data(row['id'], e_kat, e_nama, e_dl, e_stat, e_desk, e_link, e_tgl_prop, e_stat_prop, e_naungan, e_tujuan)
-                            st.toast('✨ Data berhasil di-update!', icon='✅')
-                            time.sleep(1)
-                            st.rerun()
-                
-                if st.button("🗑️ Hapus Permanen", key=f"del_h_{row['id']}"):
-                    hapus_data(row['id'])
-                    st.rerun()
+                # BUTTON AKSI HISTORY (POP-UP EDIT & HAPUS)
+                col_h_btn1, col_h_btn2 = st.columns(2)
+                with col_h_btn1:
+                    with st.popover("✏️ Edit Data / Bangkitkan", use_container_width=True):
+                        with st.form(key=f"edit_hist_{row['id']}"):
+                            st.markdown("##### ✏️ Update History")
+                            e_kat = st.selectbox("Kategori", kategori_list, index=kategori_list.index(row['kategori']) if row['kategori'] in kategori_list else 0, key=f"kat_h_{row['id']}")
+                            e_nama = st.text_input("Nama Kegiatan", value=row['nama'], key=f"nama_h_{row['id']}")
+                            
+                            col_e1, col_e2 = st.columns(2)
+                            e_dl = col_e1.date_input("Deadline Utama", value=dl_date, format="DD/MM/YYYY", key=f"dl_h_{row['id']}")
+                            e_stat = col_e2.selectbox("Status Akhir", status_list, index=status_list.index(row['status']) if row['status'] in status_list else 0, key=f"stat_h_{row['id']}")
+                            
+                            if row['kategori'] != "Jurnal":
+                                col_ep1, col_ep2 = st.columns(2)
+                                idx_naungan = naungan_list.index(row.get('naungan')) if row.get('naungan') in naungan_list else 0
+                                e_naungan = col_ep1.selectbox("Dinaungi Oleh", naungan_list, index=idx_naungan, key=f"naungan_h_{row['id']}")
+                                wajib_label_e = " (Wajib)" if e_naungan != "Individu" else ""
+                                e_tujuan = col_ep2.text_input(f"Dikirim ke {wajib_label_e}", value=row.get('tujuan_proposal') or "", key=f"tujuan_h_{row['id']}")
+                                
+                                col_ep3, col_ep4 = st.columns(2)
+                                prop_date_val = datetime.strptime(row['tgl_proposal'], "%Y-%m-%d").date() if row.get('tgl_proposal') else today
+                                e_tgl_prop = col_ep3.date_input("Deadline Proposal", value=prop_date_val, format="DD/MM/YYYY", key=f"tglp_h_{row['id']}")
+                                idx_stat_prop = stat_prop_list.index(row.get('status_proposal')) if row.get('status_proposal') in stat_prop_list else 0
+                                e_stat_prop = col_ep4.selectbox("Status Proposal", stat_prop_list, index=idx_stat_prop, key=f"statp_h_{row['id']}")
+                            else:
+                                e_tgl_prop = None
+                                e_stat_prop = "-"
+                                e_naungan = "Individu"
+                                e_tujuan = "-"
+                                
+                            e_desk = st.text_area("Deskripsi", value=row.get('deskripsi') or "", key=f"desk_h_{row['id']}")
+                            e_link = st.text_input("Link Berkas", value=row.get('link') or "", key=f"link_h_{row['id']}")
+                            
+                            if st.form_submit_button("💾 Simpan Perubahan", type="primary", use_container_width=True):
+                                if not e_nama:
+                                    st.error("❌ Nama kegiatan tidak boleh kosong!")
+                                elif e_kat != "Jurnal" and e_naungan != "Individu" and not e_tujuan:
+                                    st.error("🚨 Gagal Update! Kolom 'Dikirim ke' WAJIB diisi.")
+                                else:
+                                    update_data(row['id'], e_kat, e_nama, e_dl, e_stat, e_desk, e_link, e_tgl_prop, e_stat_prop, e_naungan, e_tujuan)
+                                    st.toast('✨ Data berhasil di-update!', icon='✅')
+                                    time.sleep(1)
+                                    st.rerun()
+
+                with col_h_btn2:
+                    if st.button("🗑️ Hapus Permanen", key=f"del_h_{row['id']}", use_container_width=True):
+                        hapus_data(row['id'])
+                        st.rerun()
